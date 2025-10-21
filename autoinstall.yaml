@@ -1,27 +1,23 @@
 #cloud-config
 autoinstall:
   version: 1
+  interactive-sections: []   # required by Desktop installer, can be empty
 
   locale: en_US.UTF-8
   keyboard:
     layout: us
   timezone: Asia/Singapore
 
-  # Wipe largest disk and install (non-interactive)
   storage:
     layout:
-      name: direct
-      match:
-        size: largest
+      name: direct            # wipe largest disk with a simple layout
 
   identity:
     realname: MVIZN PTE. LTD.
     hostname: YC-XXXX
     username: mvizn
-    # sha512-crypt of: mviznPSAYC
+    # password is: mviznPSAYC (sha512-crypt)
     password: "$6$rounds=4096$mviznAuto$7bn2Iu24T6A3EwBG43PptmGbJ6pclqj6fFErmuWghxvD1J1L7DybT2UQbXxV2qjQp9gKwRgSfQxCPZ7ohLmvD/"
-  ssh:
-    install-server: true
 
   packages:
     - xdotool
@@ -56,17 +52,17 @@ autoinstall:
       classic: true
 
   late-commands:
-    # Docker official repo
+    # Docker repo + install
     - curtin in-target --target=/target bash -c 'install -m 0755 -d /etc/apt/keyrings'
     - curtin in-target --target=/target bash -c 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc'
     - curtin in-target --target=/target bash -c 'chmod a+r /etc/apt/keyrings/docker.asc'
-    - curtin in-target --target=/target bash -c 'echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \${UBUNTU_CODENAME:-$VERSION_CODENAME}) stable" > /etc/apt/sources.list.d/docker.list'
+    - curtin in-target --target=/target bash -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME:-$VERSION_CODENAME}) stable" > /etc/apt/sources.list.d/docker.list'
     - curtin in-target --target=/target apt-get update
     - curtin in-target --target=/target apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     - curtin in-target --target=/target bash -c 'groupadd docker || true && usermod -aG docker mvizn'
     - curtin in-target --target=/target systemctl enable docker
 
-    # NVIDIA Container Toolkit repo + install (driver handled by ubuntu-drivers if needed later)
+    # NVIDIA Container Toolkit
     - curtin in-target --target=/target bash -c 'curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg'
     - curtin in-target --target=/target bash -c 'curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed "s#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g" > /etc/apt/sources.list.d/nvidia-container-toolkit.list'
     - curtin in-target --target=/target apt-get update
@@ -74,9 +70,8 @@ autoinstall:
     - curtin in-target --target=/target bash -c 'nvidia-ctk runtime configure --runtime=docker || true'
     - curtin in-target --target=/target systemctl restart docker
 
-    # Hardware report and desktop auto-login
+    # Hardware report + auto-login
     - curtin in-target --target=/target bash -c 'mkdir -p /home/mvizn/Documents && lshw -html > /home/mvizn/Documents/lshw.html && chown mvizn:mvizn /home/mvizn/Documents/lshw.html && chmod 644 /home/mvizn/Documents/lshw.html'
     - curtin in-target --target=/target bash -c 'mkdir -p /etc/gdm3 && printf "[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=mvizn\n" > /etc/gdm3/custom.conf'
 
-  # Reboot when done
   shutdown: reboot
